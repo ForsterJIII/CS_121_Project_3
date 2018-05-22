@@ -1,34 +1,32 @@
 from bs4 import BeautifulSoup
 from collections import defaultdict
-from pymongo import MongoClient
 import json
-import pprint
-import sys
+import lxml
+from pymongo import MongoClient
 import re
+import sys
 
-FOLDER = "WEBPAGES_RAW"
+WEBPAGE_FOLDER = "WEBPAGES_RAW"
 
 class IndexBuilder():
 
-	json_file = ""
-	total_documents = 0
-
-	# Maps tokens to number of documents with that token
-	tokens_map = defaultdict(int)
-
-	def __init__(self, json_file):
-		self.json_file = json_file
-
-	def get_total_tokens(self, tokens_dict: dict):
+	def _setup_db(self, db_name, db_collection, keep_old_index):
 		"""
-		Returns the total number of terms within a tokens dictionary.
+		Connects to the MongoClient and initializes the collection
 		"""
-		total = 0
-		for (token, frequencies) in tokens_dict.items():
-			total += frequencies
-		return total
+		self._db_host = MongoClient('localhost', 27017)
+		self._db = self._db_host[db_name] # Name of the db being used
+		self._collection = self._db[db_collection]; #Name of the collection in the db
+		if( not keep_old_index ):
+			self._collection.drop()
+	
+	def __init__(self, html_loc_json, db_name, db_collection, keep_old_index):
+		self._corpus_json = html_loc_json # Name of the json file containing the corpus information
+		self._total_documents = 0 # Total # of documents parsed
+		self._tokens_map = defaultdict(int) # Maps tokens to number of documents with that token
+		self._setup_db( db_name, db_collection, keep_old_index);
 
-	def get_tokens_dict(self, text: str):
+	def _parse_html(self, text: str): #DOUBLE CHECK LATER TO SEE IF WE SHOULD BE RETURNING A DICT INSTEAD OF PASSING BY REFRENCE
 		"""
 		Creates the tokens dictionary from the HTML text (re-used from my
 		Assignment 1 code.) Keys are tokens and values are the tokens'
@@ -39,69 +37,50 @@ class IndexBuilder():
 			tokens_dict[token.lower()] += 1
 		return tokens_dict
 
-
-	def parse_json(self):
+	def create_index(self):
 		"""
-		Parses bookkeeping.json and creates a tokens dict.
+		Parses given corpus_json and creates an inverted index from its data
 		"""
-		client = MongoClient('localhost', 27017)
-		db = client.cs121_db
+		corpus_data = json.load(open(self._corpus_json))
 
-		# Index is the name of the collection in the db
-		index = db.index
-
-		json_data = json.load(open(self.json_file))
-
-
-		for doc_id, url in json_data.items():
-			html_file_loc = doc_id.split("/")
-			html_file = open(FOLDER + "/" + html_file_loc[0] + "/"
-						+ html_file_loc[1],'r','utf-8')
-			soup = BeautifulSoup(html_file, 'html.parser')
+		for doc_id, url in corpus_data.items():
+			html_id_info = doc_id.split("/")
+			file_name = "{}/{}/{}".format(WEBPAGE_FOLDER, html_id_info[0], html_id_info[1])
+			html_file = open(file_name, 'r', encoding = 'utf-8')
+			soup = BeautifulSoup(html_file, 'lxml')
 
 			# Create the tokens dict of given doc and iterate through
 			# each token, updating the db.
-			tokens_dict = self.get_tokens_dict(soup.get_text())
+			tokens_dict = self._parse_html(soup.get_text())
 
-			self.total_documents += 1
+			self._total_documents += 1
 
 			for (token, frequencies) in tokens_dict.items():
-				# cursor = index.find({"token" : token})
-				# if (cursor.count() == 0):
-				# 	index.insert({"token" : token, "docIds" : {doc_id : 0}, "docIdCounts" : {doc_id : frequencies}})
-				# else:
-				index.find_one_and_update(
+				self._collection.find_one_and_update(
 					{"_id" : token}, 
 					{"$set" : {("docIds." + doc_id) : 0, 
 					("docIdCounts." + doc_id) : frequencies}}, 
 					upsert=True)
 
-			print("Parsed {} documents so far".format(self.total_documents))
+			print("Parsed {} documents so far".format(self._total_documents))
 
-			
-
-	def build_index(self):
-		client = MongoClient('localhost', 27017)
-		db = client.cs121_db
-		index = db.index
-
-		# for (token_str, frequencies) in tokens_dict:
-			# 	cursor = index.find("{{token : {}}}".format(token_str))
-			# 	if (cursor.count == 0):
-			# 		index.insertOne("{{token : {}, docIds : []}}")
-
-			# cursor = index.find({"token" : "test_token"})
-			# print(cursor.count())
-
-			# db.posts.update({"_id" : 10}, {"token" : []})
-			# db.posts.update({"_id" : 10}, {"$push" : {"token" : {"doc_id1" : "df-tf1"}}})
+	def get_total_documents(self):
+		"""
+		Returns the total number of documents parsed
+		"""
+		return self._total_documents
+		
+	def get_total_tokens(self, tokens_dict: dict):
+		"""
+		Returns the total number of terms within a tokens dictionary.
+		"""
+		return self._collection.count()
 
 if __name__ == "__main__":
 	try:
-		index_builder = IndexBuilder(sys.argv[1])
-		index_builder.parse_json()
-		print("Completed index construction. " +
-			"Total documents parsed: {}".format(index_builder.total_documents))
+		index_builder = IndexBuilder("WEBPAGES_RAW/bookkeeping.json", "CS_121_db", "HTML_Corpus_Index", False)
+		index_builder.create_index()
+		print("Completed index construction.\n Total documents parsed: {}".format( index_builder.get_total_documents() ))
 
 	except Exception as e:
 		print(e)
