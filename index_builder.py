@@ -56,7 +56,7 @@ class IndexBuilder():
 		for doc_id, url in json_data.items():
 			html_file_loc = doc_id.split("/")
 			html_file = open(FOLDER + "/" + html_file_loc[0] + "/"
-						+ html_file_loc[1])
+						+ html_file_loc[1],'r','utf-8')
 			soup = BeautifulSoup(html_file, 'html.parser')
 
 			# Create the tokens dict of given doc and iterate through
