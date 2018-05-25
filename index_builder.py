@@ -5,8 +5,9 @@ import lxml
 from pymongo import MongoClient
 import re
 import sys
+import math
 
-WEBPAGE_FOLDER = "WEBPAGES_RAW"
+WEBPAGE_FOLDER = "/home/skayani-ubuntu/Desktop/cs121_projects/project3/WEBPAGES_RAW"
 
 class IndexBuilder():
 
@@ -26,6 +27,9 @@ class IndexBuilder():
 		self._tokens_map = defaultdict(int) # Maps tokens to number of documents with that token
 		self._setup_db( db_name, db_collection, keep_old_index);
 
+		# TODO: Feel free to rename
+		self._index_dict = {}
+
 	def _parse_html(self, text: str): #DOUBLE CHECK LATER TO SEE IF WE SHOULD BE RETURNING A DICT INSTEAD OF PASSING BY REFRENCE
 		"""
 		Creates the tokens dictionary from the HTML text (re-used from my
@@ -36,6 +40,23 @@ class IndexBuilder():
 		for token in re.findall(re.compile(r"[A-Za-z0-9]+"), text):
 			tokens_dict[token.lower()] += 1
 		return tokens_dict
+
+	def insert_tfidf_values(self):
+		for token_data in self._index_dict.values():
+			for doc_id, term_freq in token_data["docIds"].items():
+				token_data["docIds"][doc_id] = term_freq * math.log10(self._total_documents/len(token_data["docIds"]))
+
+	def create_json_file(self):
+		"""
+		Creates the JSON file that will be used to load the index data in bulk.
+		"""
+		print("Creating json file...")
+		json_list = []
+		for token_data in self._index_dict.values():
+			json_list.append(token_data)
+		with open('index_data.json', 'w') as json_file:
+			json.dump(json_list, json_file)
+		print("Successfully created json file.")
 
 	def create_index(self):
 		"""
@@ -56,11 +77,20 @@ class IndexBuilder():
 			self._total_documents += 1
 
 			for (token, frequencies) in tokens_dict.items():
-				self._collection.find_one_and_update(
-					{"_id" : token}, 
-					{"$set" : {("docIds." + doc_id) : 0, 
-					("docIdCounts." + doc_id) : frequencies}}, 
-					upsert=True)
+				token_exists = False
+				if token in self._index_dict:
+					token_exists = True
+					self._index_dict[token]["docIds"][doc_id] = 1 + math.log10(frequencies)
+				if (not token_exists):
+					self._index_dict[token] = {"_id" : token, 
+					"docIds" : {doc_id : 1 + math.log10(frequencies)}}
+
+			# for (token, frequencies) in tokens_dict.items():
+			# 	self._collection.find_one_and_update(
+			# 		{"_id" : token}, 
+			# 		{"$set" : {("docIds." + doc_id) : 0, 
+			# 		("docIdCounts." + doc_id) : frequencies}}, 
+			# 		upsert=True)
 
 			print("Parsed {} documents so far".format(self._total_documents))
 
@@ -77,10 +107,12 @@ class IndexBuilder():
 		return self._collection.count()
 
 if __name__ == "__main__":
-	try:
-		index_builder = IndexBuilder("WEBPAGES_RAW/bookkeeping.json", "CS_121_db", "HTML_Corpus_Index", False)
-		index_builder.create_index()
-		print("Completed index construction.\n Total documents parsed: {}".format( index_builder.get_total_documents() ))
+	# try:
+	index_builder = IndexBuilder("/home/skayani-ubuntu/Desktop/cs121_projects/project3/WEBPAGES_RAW/bookkeeping.json", "CS_121_db", "HTML_Corpus_Index", False)
+	index_builder.create_index()
+	index_builder.insert_tfidf_values()
+	index_builder.create_json_file()
+	# print("Completed index construction.\n Total documents parsed: {}".format( index_builder.get_total_documents() ))
 
-	except Exception as e:
-		print(e)
+	# except Exception as e:
+	# 	print(e)
