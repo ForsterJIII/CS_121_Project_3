@@ -79,7 +79,7 @@ class Search:
 		print("Search result:")
 		url_ranking = 1
 		for url, tf_idf in urls_list:
-			print("{}) {} ({:.2f})".format(url_ranking, url, tf_idf))
+			print("{}) {} {} {}".format(url_ranking, url, tf_idf[0],tf_idf[1]))
 			url_ranking += 1
 
 
