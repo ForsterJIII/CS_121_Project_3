@@ -1,10 +1,12 @@
 from pymongo import MongoClient
 import json
 
-BOOKKEPING_LOC = "/home/skayani-ubuntu/Desktop/cs121_projects/project3/WEBPAGES_RAW/bookkeeping.json"
+BOOKKEPING_LOC = "../Project_3/WEBPAGES_RAW/bookkeeping.json"
+
+def get_tfidf( key_value_tuple ):
+	return key_value_tuple[1]["tf-idf"]
 
 class Search:
-
 	def _setup_db(self, db_name, db_collection):
 		"""
 		Connects to the MongoClient and initializes the collection
@@ -26,11 +28,11 @@ class Search:
 		json_data = json.load(open(BOOKKEPING_LOC))
 		result = self._collection.find({"_id": query_str})
 		token_value = result.next()
-		docs_dict = token_value["docIds"]
+		docs_dict = token_value["Doc_info"]
 
 		results_count = 0
-		for doc_id in sorted(docs_dict, key=docs_dict.get, reverse=True):
-			urls_list.append((json_data[doc_id], docs_dict[doc_id]))
+		for doc_id, attributes in sorted(docs_dict.items(), key=get_tfidf, reverse=True):
+			urls_list.append((json_data[doc_id], docs_dict[doc_id]["tf-idf"]))
 
 			results_count += 1
 			if (results_count == 10):
@@ -52,7 +54,7 @@ class Search:
 
 if __name__ == "__main__":
 	print("Starting search program...")
-	search_program = Search("cs121_db", "html_corpus_index")
+	search_program = Search("CS121_Inverted_Index", "HTML_Corpus_Index")
 	while True:
 		user_input = input("Enter a query to search or 'quit' to exit: ")
 		if (user_input == "quit"):

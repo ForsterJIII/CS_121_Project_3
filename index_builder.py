@@ -6,29 +6,27 @@ from pymongo import MongoClient
 import re
 import sys
 import math
+import time
 
-WEBPAGE_FOLDER = "/home/skayani-ubuntu/Desktop/cs121_projects/project3/WEBPAGES_RAW"
+WEBPAGE_FOLDER = "../Project_3/WEBPAGES_RAW"
 
 class IndexBuilder():
 
-	def _setup_db(self, db_name, db_collection, keep_old_index):
+	def _setup_db(self, db_name : str, db_collection, keep_old_index : bool):
 		"""
 		Connects to the MongoClient and initializes the collection
 		"""
 		self._db_host = MongoClient('localhost', 27017)
 		self._db = self._db_host[db_name] # Name of the db being used
 		self._collection = self._db[db_collection] #Name of the collection in the db
-		if( not keep_old_index ):
+		if( not keep_old_index ): #Checks whether the user wants the database to reset or keep old data
 			self._collection.drop()
 	
-	def __init__(self, html_loc_json, db_name, db_collection, keep_old_index):
+	def __init__(self, html_loc_json, db_name : str, db_collection : str, keep_old_index : bool):
 		self._corpus_json = html_loc_json # Name of the json file containing the corpus information
 		self._total_documents = 0 # Total # of documents parsed
-		self._tokens_map = defaultdict(int) # Maps tokens to number of documents with that token
+		self._inverted_index = defaultdict(dict) # A three-tiered dictionary (term->document->attributes) 
 		self._setup_db( db_name, db_collection, keep_old_index)
-
-		# TODO: Feel free to rename
-		self._index_dict = {}
 
 	def _parse_html(self, text: str): #DOUBLE CHECK LATER TO SEE IF WE SHOULD BE RETURNING A DICT INSTEAD OF PASSING BY REFRENCE
 		"""
@@ -42,20 +40,22 @@ class IndexBuilder():
 		return tokens_dict
 
 	def insert_tfidf_values(self):
-		for token_data in self._index_dict.values():
-			for doc_id, term_freq in token_data["docIds"].items():
-				token_data["docIds"][doc_id] = term_freq * math.log10(self._total_documents/len(token_data["docIds"]))
+		"""
+		Insert the  tf-idf into every document's attributes
+		"""
+		for token_info in self._inverted_index.values():
+			for doc_info in token_info["Doc_info"].values():
+				doc_info["tf-idf"] = (1+math.log10(doc_info["tf"])) * math.log10(self._total_documents/len(token_info["Doc_info"]))
 
-	def create_json_file(self):
+	def insert_into_db(self):
 		"""
-		Creates the JSON file that will be used to load the index data in bulk.
+		Inserts Inverted Index into the db
 		"""
-		print("Creating json list...")
-		json_list = []
-		for token_data in self._index_dict.values():
-			json_list.append(token_data)
-		self._collection.insert_many(json_list)
-		print("Successfully inserted json list to DB.")
+		print("Updating DB ...")
+		db_insert_start = time.time()
+		self._collection.insert_many( self._inverted_index.values() )
+		print("Successfully Updated DB")
+		print( "Inserting into the DB took: {} seconds".format( time.time() - db_insert_start ) )
 
 	def create_index(self):
 		"""
@@ -63,8 +63,12 @@ class IndexBuilder():
 		"""
 		corpus_data = json.load(open(self._corpus_json))
 
+		print("Starting to Parse Corpus")
+		doc_parsing_start = time.time()
 		for doc_id, url in corpus_data.items():
-			html_id_info = doc_id.split("/")
+			# if( self._total_documents > 5000 ): #FOR TESTING
+				# break;
+			html_id_info = doc_id.split("/") #stored in "folder/html_file" format
 			file_name = "{}/{}/{}".format(WEBPAGE_FOLDER, html_id_info[0], html_id_info[1])
 			html_file = open(file_name, 'r', encoding = 'utf-8')
 			soup = BeautifulSoup(html_file, 'lxml')
@@ -76,22 +80,13 @@ class IndexBuilder():
 			self._total_documents += 1
 
 			for (token, frequencies) in tokens_dict.items():
-				token_exists = False
-				if token in self._index_dict:
-					token_exists = True
-					self._index_dict[token]["docIds"][doc_id] = 1 + math.log10(frequencies)
-				if (not token_exists):
-					self._index_dict[token] = {"_id" : token, 
-					"docIds" : {doc_id : 1 + math.log10(frequencies)}}
-
-			# for (token, frequencies) in tokens_dict.items():
-			# 	self._collection.find_one_and_update(
-			# 		{"_id" : token}, 
-			# 		{"$set" : {("docIds." + doc_id) : 0, 
-			# 		("docIdCounts." + doc_id) : frequencies}}, 
-			# 		upsert=True)
+				if token not in self._inverted_index:
+					self._inverted_index[token] = {"_id" : token, 
+					"Doc_info" : defaultdict(dict) }
+				self._inverted_index[token]["Doc_info"][doc_id]["tf"] = frequencies
 
 			print("Parsed {} documents so far".format(self._total_documents))
+		print( "Corpus Parsing Took: {} minutes".format( (time.time() - doc_parsing_start)/60 ) )
 
 	def get_total_documents(self):
 		"""
@@ -107,10 +102,10 @@ class IndexBuilder():
 
 if __name__ == "__main__":
 	# try:
-	index_builder = IndexBuilder("/home/skayani-ubuntu/Desktop/cs121_projects/project3/WEBPAGES_RAW/bookkeeping.json", "cs121_db", "html_corpus_index", False)
+	index_builder = IndexBuilder("../Project_3/WEBPAGES_RAW/bookkeeping.json", "CS121_Inverted_Index", "HTML_Corpus_Index", False)
 	index_builder.create_index()
 	index_builder.insert_tfidf_values()
-	index_builder.create_json_file()
+	index_builder.insert_into_db()
 	# print("Completed index construction.\n Total documents parsed: {}".format( index_builder.get_total_documents() ))
 
 	# except Exception as e:
