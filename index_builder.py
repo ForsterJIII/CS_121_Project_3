@@ -17,7 +17,7 @@ class IndexBuilder():
 		"""
 		self._db_host = MongoClient('localhost', 27017)
 		self._db = self._db_host[db_name] # Name of the db being used
-		self._collection = self._db[db_collection]; #Name of the collection in the db
+		self._collection = self._db[db_collection] #Name of the collection in the db
 		if( not keep_old_index ):
 			self._collection.drop()
 	
@@ -25,7 +25,7 @@ class IndexBuilder():
 		self._corpus_json = html_loc_json # Name of the json file containing the corpus information
 		self._total_documents = 0 # Total # of documents parsed
 		self._tokens_map = defaultdict(int) # Maps tokens to number of documents with that token
-		self._setup_db( db_name, db_collection, keep_old_index);
+		self._setup_db( db_name, db_collection, keep_old_index)
 
 		# TODO: Feel free to rename
 		self._index_dict = {}
