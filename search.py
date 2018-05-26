@@ -24,51 +24,52 @@ class Search:
                 Returns a list of URLs that contain the given query (sorted) by tf-idf
                 values.
                 """
-                
-                urls_match = []#stores data of all the urls and tf.idfs
-                
-                url_intersect_set = {}#stores urls that match ALL the queries
-                urls_score_total = {}#used at the very end to calculate tf.idf of the intersected urls for sorting
-
+                url_dict = {} #stores data of end urls                
+                urls_tf_idf_total = {}#used to keep track of tf.idf for the queries
+                result_list = [] #used to store the results
                 json_data = json.load(open(BOOKKEPING_LOC))
                 split_query = query_str.split()
                 counter = 0
                 for query in split_query: #iterate through query by splitting with space
-                    
-                    
                     result = self._collection.find({"_id": query})
                     try:
                         token_value = result.next()
                         docs_dict = token_value["Doc_info"]
-
                         results_count = 0 #potentially have to take out if want all queries for selecting
-                        urls_check = []
                         for doc_id, attributes in sorted(docs_dict.items(), key=get_tfidf, reverse=True):
-                                urls_check.append(json_data[doc_id])
-                                if(json_data[doc_id] in urls_score_total):
-                                    urls_score_total[json_data[doc_id]] += docs_dict[doc_id]["tf-idf"]
+                                #keeping track of updates. those with more updates = matched more queries = higher priority
+                                #even if lower tf.idf
+                                if(json_data[doc_id] in urls_tf_idf_total):
+                                    urls_tf_idf_total[json_data[doc_id]][0] += 1
+                                    urls_tf_idf_total[json_data[doc_id]][1] += docs_dict[doc_id]["tf-idf"]
                                 else:
-                                    urls_score_total[json_data[doc_id]] = docs_dict[doc_id]["tf-idf"]
+                                    urls_tf_idf_total[json_data[doc_id]] = [1,docs_dict[doc_id]["tf-idf"]]
                                 results_count += 1
                                 if (results_count == 10):
                                         break
-                        if(counter == 0):
-                            #initialize intersection set
-                            url_intersect_set  = set(urls_check)
-                            counter +=1
-                            continue
-                        #check for intersection
-                        url_intersect_set = url_intersect_set.intersection(urls_check)
-                        counter +=  1
-                    except StopIteration:
-                        return urls_list
-                #delete urls that did not match all the query terms
-                for url,tf_idf in list(urls_score_total.items()):#list part necessary in python3
-                    if url not in url_intersect_set:
-                        del urls_score_total[url]
+                    except StopIteration:#could not find query
+                        pass
+                #search for urls that match the most words and continues until 10 queries are reached
+                #or if there are no more urls to retrieve
+                counter = len(split_query)
+                while(1):
+                        if(len(url_dict) >= 10 or counter == 0): 
+                                break
+                        for url,tf_idf in list(urls_tf_idf_total.items()):#list part necessary in python3
+                            if( tf_idf[0] == counter): #iterates through ALL the words matching. Stopping prematurely
+                                    #will result in queries being missed before moving to the next best match.
+                                url_dict[url] = tf_idf
+                        counter -= 1 #used to keep track of how many queries are matching.
+                        #higher priority towards queries with more words matching
                 #return urls sorted by tf_idf
-                return sorted(urls_score_total.items(),  key=lambda x: x[1], reverse = True)
-            
+                sorted_values = sorted(url_dict.items(),  key=lambda x: (x[1][0],x[1][1]), reverse = True)
+                #return 10 top urls from sorted_values
+                for url,tf_idf in sorted_values:
+                        if(len(result_list) < 10):
+                                result_list.append((url,tf_idf))
+                        else:
+                                break
+                return result_list
        
 
 	def print_query_result(self, urls_list: list):
