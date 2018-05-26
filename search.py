@@ -1,7 +1,7 @@
 from pymongo import MongoClient
 import json
 
-BOOKKEPING_LOC = "WEBPAGES_RAW/bookkeeping.json"
+BOOKKEPING_LOC = "../Project_3/WEBPAGES_RAW"
 
 def get_tfidf( key_value_tuple ):
 	return key_value_tuple[1]["tf-idf"]
