@@ -20,26 +20,60 @@ class Search:
 		self._setup_db(db_name, db_collection)
 
 	def query(self, query_str: str)->list:
-		"""
-		Returns a list of URLs that contain the given query (sorted) by tf-idf
-		values.
-		"""
-		urls_list = []
-		json_data = json.load(open(BOOKKEPING_LOC))
-		result = self._collection.find({"_id": query_str})
-		token_value = result.next()
-		docs_dict = token_value["Doc_info"]
+	    """
+	    Returns a list of URLs that contain the given query (sorted) by tf-idf
+	    values.
+	    """
 
-		results_count = 0
-		for doc_id, attributes in sorted(docs_dict.items(), key=get_tfidf, reverse=True):
-			urls_list.append((json_data[doc_id], docs_dict[doc_id]["tf-idf"]))
+	    urls_match = []#stores data of all the urls and tf.idfs
 
-			results_count += 1
-			if (results_count == 10):
-				break
+	    url_intersect_set = {}#stores urls that match ALL the queries
+	    urls_score_total = {}#used at the very end to calculate tf.idf of the intersected urls for sorting
 
-		return urls_list
+	    json_data = json.load(open(BOOKKEPING_LOC))
+	    split_query = query_str.split()
+	    counter = 0
+	    for query in split_query: #iterate through query by splitting with space
 
+
+		result = self._collection.find({"_id": query})
+		try:
+		    token_value = result.next()
+		    docs_dict = token_value["Doc_info"]
+
+		    results_count = 0 #potentially have to take out if want all queries for selecting
+		    url_dict = dict() #resets every new query so intersect_set can keep track
+		    for doc_id, attributes in sorted(docs_dict.items(), key=get_tfidf, reverse=True):
+			    url_dict[json_data[doc_id]] = docs_dict[doc_id]["tf-idf"]
+
+			    results_count += 1
+			    if (results_count == 10):
+				    break
+		    urls_match.append(url_dict)
+		    if(counter == 0):
+			#initialize intersection set
+			url_intersect_set  = set(urls_match[counter].keys())
+			counter +=1
+			continue
+		    #check for intersection
+		    url_intersect_set = url_intersect_set.intersection(urls_match[counter].keys())
+		    counter +=  1
+		except StopIteration:
+		    return urls_list
+	    #calculate total tf.idf of all the urls and sort based on remaining urls in interset_set
+	    for url in url_intersect_set:
+		count = 0
+		print(url)
+		for url_dict in urls_match:
+		    if(url in urls_score_total):
+			urls_score_total[url] += urls_match[count][url]
+		    else:
+			urls_score_total[url] = urls_match[count][url]
+		    print(urls_score_total[url])
+		    count += 1
+	    return sorted(urls_score_total.items(),  key=lambda x: x[1], reverse = True)
+
+         
 
 	def print_query_result(self, urls_list: list):
 		"""
