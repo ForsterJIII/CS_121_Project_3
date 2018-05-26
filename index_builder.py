@@ -50,13 +50,12 @@ class IndexBuilder():
 		"""
 		Creates the JSON file that will be used to load the index data in bulk.
 		"""
-		print("Creating json file...")
+		print("Creating json list...")
 		json_list = []
 		for token_data in self._index_dict.values():
 			json_list.append(token_data)
-		with open('index_data.json', 'w') as json_file:
-			json.dump(json_list, json_file)
-		print("Successfully created json file.")
+		self._collection.insert_many(json_list)
+		print("Successfully inserted json list to DB.")
 
 	def create_index(self):
 		"""
@@ -108,7 +107,7 @@ class IndexBuilder():
 
 if __name__ == "__main__":
 	# try:
-	index_builder = IndexBuilder("/home/skayani-ubuntu/Desktop/cs121_projects/project3/WEBPAGES_RAW/bookkeeping.json", "CS_121_db", "HTML_Corpus_Index", False)
+	index_builder = IndexBuilder("/home/skayani-ubuntu/Desktop/cs121_projects/project3/WEBPAGES_RAW/bookkeeping.json", "cs121_db", "html_corpus_index", False)
 	index_builder.create_index()
 	index_builder.insert_tfidf_values()
 	index_builder.create_json_file()
