@@ -7,7 +7,10 @@ import re
 import sys
 import math
 import time
-
+import nltk
+from nltk.corpus import stopwords
+stop_words = set(stopwords.words('english'))
+#nltk.download()//MUST INSTALL this before running nltk
 WEBPAGE_FOLDER = "../Project_3/WEBPAGES_RAW"
 
 class IndexBuilder():
@@ -80,10 +83,13 @@ class IndexBuilder():
 			self._total_documents += 1
 
 			for (token, frequencies) in tokens_dict.items():
-				if token not in self._inverted_index:
-					self._inverted_index[token] = {"_id" : token, 
-					"Doc_info" : defaultdict(dict) }
-				self._inverted_index[token]["Doc_info"][doc_id]["tf"] = frequencies
+				if(token in stop_words):
+					continue
+				else:
+					if token not in self._inverted_index:
+						self._inverted_index[token] = {"_id" : token, 
+						"Doc_info" : defaultdict(dict) }
+					self._inverted_index[token]["Doc_info"][doc_id]["tf"] = frequencies
 
 			print("Parsed {} documents so far".format(self._total_documents))
 		print( "Corpus Parsing Took: {} minutes".format( (time.time() - doc_parsing_start)/60 ) )
