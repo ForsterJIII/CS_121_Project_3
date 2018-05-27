@@ -1,13 +1,14 @@
+from collections import defaultdict
+import json
 from pymongo import MongoClient
 from tkinter import *
 import webbrowser
-import json
 
-BOOKKEPING_LOC = "../WEBPAGES_RAW/bookkeeping.json"
+BOOKKEPING_LOC = "../Project_3/WEBPAGES_RAW/bookkeeping.json"
 
-def get_tfidf( key_value_tuple ):
-	return key_value_tuple[1]["tf-idf"]
-
+def get_tfidf( token_docInfo_pair : (str, dict) ):
+	return token_docInfo_pair[1]["tf-idf"]
+	
 class Search:
 	def _setup_db(self, db_name, db_collection):
 		"""
@@ -49,7 +50,7 @@ class Search:
 		url_list = self._query(self._query_str.lower())
 
 		currRow = 1
-		for url, tfidf in url_list:
+		for url in url_list:
 			number_label = Label(self._master, text=str(currRow) + ") ")
 			number_label.grid(row=currRow, column=0, sticky="W")
 			number_label.config(font=("Courier", 18))
@@ -78,57 +79,37 @@ class Search:
 		self._create_query_page()
 
 	def _query(self, query_str: str)->list:
-                """
-                Returns a list of URLs that contain the given query (sorted) by tf-idf
-                values.
-                """
-                url_dict = {} #stores data of end urls                
-                urls_tf_idf_total = {}#used to keep track of tf.idf for the queries
-                result_list = [] #used to store the results
-                json_data = json.load(open(BOOKKEPING_LOC))
-                split_query = query_str.split()
-                counter = 0
-                for query in split_query: #iterate through query by splitting with space
-                    result = self._collection.find({"_id": query})
-                    try:
-                        token_value = result.next()
-                        docs_dict = token_value["Doc_info"]
-                        results_count = 0 #potentially have to take out if want all queries for selecting
-                        for doc_id, attributes in sorted(docs_dict.items(), key=get_tfidf, reverse=True):
-                                #keeping track of updates. those with more updates = matched more queries = higher priority
-                                #even if lower tf.idf
-                                if(json_data[doc_id] in urls_tf_idf_total):
-                                    urls_tf_idf_total[json_data[doc_id]][0] += 1
-                                    urls_tf_idf_total[json_data[doc_id]][1] += docs_dict[doc_id]["tf-idf"]
-                                else:
-                                    urls_tf_idf_total[json_data[doc_id]] = [1,docs_dict[doc_id]["tf-idf"]]
-                                results_count += 1
-                                if (results_count == 10):
-                                        break
-                    except StopIteration:#could not find query
-                        pass
-                #search for urls that match the most words and continues until 10 queries are reached
-                #or if there are no more urls to retrieve
-                counter = len(split_query)
-                while(1):
-                        if(len(url_dict) >= 10 or counter == 0): 
-                                break
-                        for url,tf_idf in list(urls_tf_idf_total.items()):#list part necessary in python3
-                            if( tf_idf[0] == counter): #iterates through ALL the words matching. Stopping prematurely
-                                    #will result in queries being missed before moving to the next best match.
-                                url_dict[url] = tf_idf
-                        counter -= 1 #used to keep track of how many queries are matching.
-                        #higher priority towards queries with more words matching
-                #return urls sorted by tf_idf
-                sorted_values = sorted(url_dict.items(),  key=lambda x: (x[1][0],x[1][1]), reverse = True)
-                #return 10 top urls from sorted_values
-                for url,tf_idf in sorted_values:
-                        if(len(result_list) < 10):
-                                result_list.append((url,tf_idf))
-                        else:
-                                break
-                return result_list
-       
+				"""
+				Returns a list of URLs that contain the given query (sorted) by tf-idf
+				values.
+				"""
+				count_and_tfidf_of_docid = {} # Used to keep track of how many query terms a doc contains and its tfidf		
+				result_list = [] #Used to store the urls to be returned at the end
+				url_json = json.load(open(BOOKKEPING_LOC)) #Contains the key for the doc-ids to their urls
+				split_query = query_str.split() #Splits the query into individual terms by space
+				counter = 0
+				
+				for query in split_query: #iterate through query by splitting with space
+					result = self._collection.find({"_id": query})
+					if( result.count() < 1 ):
+						continue; #No apperance of query term in inverted index
+					token_dict = result.next() #Contains _Id : token_name and Doc_info : dict which contains all docids with token
+					docs_dict = token_dict["Doc_info"]
+					for docID, attributes in sorted(docs_dict.items(), key=get_tfidf, reverse=True): #Sorted list by tf-idf
+						if( docID not in count_and_tfidf_of_docid.keys() ):
+							count_and_tfidf_of_docid[docID] = ( 1, docs_dict[docID]["tf-idf"] ) #Firsty apperance of docID
+						else:
+							count_and_tfidf_of_docid[docID] = ( count_and_tfidf_of_docid[docID][0]+1,
+																count_and_tfidf_of_docid[docID][1]+docs_dict[docID]["tf-idf"] )
+						
+				#return 10 top urls based upon query word count and then total tf-idf
+				for docID, count_and_tf_idf in sorted(count_and_tfidf_of_docid.items(), key=lambda tuple: (tuple[1][0], tuple[1][1]), reverse=True):
+					if( len(result_list) < 10 ):
+						docID_url = url_json[docID]
+						result_list.append( docID_url )
+					else:
+						break
+				return result_list
 
 	def print_query_result(self, urls_list: list):
 		"""
@@ -145,15 +126,4 @@ if __name__ == "__main__":
 	print("Starting search program...")
 	search_program = Search("CS121_Inverted_Index", "HTML_Corpus_Index")
 
-
 	mainloop( )
-
-
-	# while True:
-	# 	user_input = input("Enter a query to search or 'quit' to exit: ")
-	# 	if (user_input == "quit"):
-	# 		break
-	# 	urls_list = search_program.query(user_input.lower())
-	# 	search_program.print_query_result(urls_list)
-
-	# print("Bye")

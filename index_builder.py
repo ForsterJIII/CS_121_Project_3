@@ -9,12 +9,14 @@ import math
 import time
 import nltk
 from nltk.corpus import stopwords
-stop_words = set(stopwords.words('english'))
-#nltk.download()//MUST INSTALL this before running nltk
-WEBPAGE_FOLDER = "../Project_3/WEBPAGES_RAW"
+
+#Only run once; Comment Out after
+#nltk.download() #MUST INSTALL this before running nl tk
+
+stop_words = set(stopwords.words('english')) #Words to skip when tokenzing a document
+WEBPAGE_FOLDER = "../Project_3/WEBPAGES_RAW" #Folder contain all the documents to parse and the bookkeeping.json
 
 class IndexBuilder():
-
 	def _setup_db(self, db_name : str, db_collection, keep_old_index : bool):
 		"""
 		Connects to the MongoClient and initializes the collection
@@ -39,6 +41,8 @@ class IndexBuilder():
 		"""
 		tokens_dict = defaultdict(int)
 		for token in re.findall(re.compile(r"[A-Za-z0-9]+"), text):
+			if (token in stop_words): #Skip stop words
+					continue
 			tokens_dict[token.lower()] += 1
 		return tokens_dict
 
@@ -46,9 +50,13 @@ class IndexBuilder():
 		"""
 		Insert the  tf-idf into every document's attributes
 		"""
+		print("Inserting tf-idf...")
+		tfidf_start = time.time()
 		for token_info in self._inverted_index.values():
 			for doc_info in token_info["Doc_info"].values():
 				doc_info["tf-idf"] = (1+math.log10(doc_info["tf"])) * math.log10(self._total_documents/len(token_info["Doc_info"]))
+		print("Finished Inserting tf-idf")
+		print( "Inserting tf-idf took: {} seconds".format( time.time() - tfidf_start ) )
 
 	def insert_into_db(self):
 		"""
@@ -83,13 +91,9 @@ class IndexBuilder():
 			self._total_documents += 1
 
 			for (token, frequencies) in tokens_dict.items():
-				if(token in stop_words):
-					continue
-				else:
-					if token not in self._inverted_index:
-						self._inverted_index[token] = {"_id" : token, 
-						"Doc_info" : defaultdict(dict) }
-					self._inverted_index[token]["Doc_info"][doc_id]["tf"] = frequencies
+				if token not in self._inverted_index:
+					self._inverted_index[token] = {"_id" : token, "Doc_info" : defaultdict(dict) }
+				self._inverted_index[token]["Doc_info"][doc_id]["tf"] = frequencies
 
 			print("Parsed {} documents so far".format(self._total_documents))
 		print( "Corpus Parsing Took: {} minutes".format( (time.time() - doc_parsing_start)/60 ) )
