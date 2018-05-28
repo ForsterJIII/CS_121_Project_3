@@ -14,7 +14,7 @@ from nltk.corpus import stopwords
 #nltk.download() #MUST INSTALL this before running nl tk
 
 stop_words = set(stopwords.words('english')) #Words to skip when tokenzing a document
-WEBPAGE_FOLDER = "WEBPAGES_RAW/bookkeeping.json" #Folder contain all the documents to parse and the bookkeeping.json
+WEBPAGE_FOLDER = "WEBPAGES_RAW" #Folder contain all the documents to parse and the bookkeeping.json
 
 class IndexBuilder():
 	def _setup_db(self, db_name : str, db_collection, keep_old_index : bool):
@@ -130,9 +130,9 @@ class IndexBuilder():
 
                                 if token not in self._inverted_index:
                                         self._inverted_index[token] = {"_id" : token, "Doc_info" : defaultdict(dict) }
-                                        self._inverted_index[token]["Doc_info"][doc_id]["tf"] = frequencies*weight_multiplier
-                                        self._inverted_index[token]["Doc_info"][doc_id]["weight_multiplier"] = weight_multiplier
-#				
+                                self._inverted_index[token]["Doc_info"][doc_id]["tf"] = frequencies*weight_multiplier
+                                self._inverted_index[token]["Doc_info"][doc_id]["weight_multiplier"] = weight_multiplier
+			
 
 			print("Parsed {} documents so far".format(self._total_documents))
 		print( "Corpus Parsing Took: {} minutes".format( (time.time() - doc_parsing_start)/60 ) )
