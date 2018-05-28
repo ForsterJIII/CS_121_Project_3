@@ -95,7 +95,7 @@ class IndexBuilder():
 			for (token, frequencies) in tokens_dict.items():
 				weight_multiplier = 1
 				if(title):
-					if(token in title.contents[0]):
+					if(token in title):
 						weight_multiplier = weight_multiplier + 0.3
 				else:
 					title = "no_title"
