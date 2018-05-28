@@ -14,7 +14,7 @@ from nltk.corpus import stopwords
 #nltk.download() #MUST INSTALL this before running nl tk
 
 stop_words = set(stopwords.words('english')) #Words to skip when tokenzing a document
-WEBPAGE_FOLDER = "../Project_3/WEBPAGES_RAW" #Folder contain all the documents to parse and the bookkeeping.json
+WEBPAGE_FOLDER = "WEBPAGES_RAW" #Folder contain all the documents to parse and the bookkeeping.json
 
 class IndexBuilder():
 	def _setup_db(self, db_name : str, db_collection, keep_old_index : bool):
@@ -88,24 +88,52 @@ class IndexBuilder():
 			# Create the tokens dict of given doc and iterate through
 			# each token, updating the db.
 			tokens_dict = self._parse_html(soup.get_text())
-
-			self._total_documents += 1
 			title = soup.find("title")
 
+
+			if(title):
+                                if(len(title.contents) != 0):#occasionally we have empty titles
+                                        title = title.contents[0]
+                                else:
+                                        title = "inval_title"
+			if(not title):
+                                title = "inval_title" #unfortunately we need 2 checks for empty title
+			h1 = soup.h1
+			if(h1):
+                                if(len(h1.contents) != 0):
+                                        h1 = h1.contents[0]
+                                else:
+                                        h1 = "inval_h1"
+
+			if(not h1):
+                                h1 = "inval_h1"
+			h2 = soup.h2
+			if(h2):
+                                if(len(h2.contents) != 0):
+                                        h2 = h2.contents[0]
+                                else:
+                                        h2 = "inval_h2"
+
+			if(not h2):
+                                h2 = "inval_h2"
+			self._total_documents += 1
 			for (token, frequencies) in tokens_dict.items():
-				weight_multiplier = 1
-				if(title):
-					if(token in title):
-						weight_multiplier = weight_multiplier + 0.3
-				else:
-					title = "no_title"
-				if(url.count(token) != 0):
+                                weight_multiplier = 1
+                                if(token in title): #gets rid of tags
                                         weight_multiplier = weight_multiplier + 0.3
-				if token not in self._inverted_index:
-					self._inverted_index[token] = {"_id" : token, "Doc_info" : defaultdict(dict) }
-				self._inverted_index[token]["Doc_info"][doc_id]["tf"] = frequencies*weight_multiplier
-				self._inverted_index[token]["Doc_info"][doc_id]["weight_multiplier"] = weight_multiplier
-				
+                                weight_multiplier = 1
+                                if(url.count(token) != 0):
+                                        weight_multiplier = weight_multiplier + 0.3                                
+                                if(token in h1):
+                                        weight_multiplier = weight_multiplier + 0.1
+                                if(token in h2):
+                                        weight_multiplier = weight_multiplier + 0.05
+
+                                if token not in self._inverted_index:
+                                        self._inverted_index[token] = {"_id" : token, "Doc_info" : defaultdict(dict) }
+                                        self._inverted_index[token]["Doc_info"][doc_id]["tf"] = frequencies*weight_multiplier
+                                        self._inverted_index[token]["Doc_info"][doc_id]["weight_multiplier"] = weight_multiplier
+#				
 
 			print("Parsed {} documents so far".format(self._total_documents))
 		print( "Corpus Parsing Took: {} minutes".format( (time.time() - doc_parsing_start)/60 ) )
@@ -124,7 +152,7 @@ class IndexBuilder():
 
 if __name__ == "__main__":
 	# try:
-	index_builder = IndexBuilder("../Project_3/WEBPAGES_RAW/bookkeeping.json", "CS121_Inverted_Index", "HTML_Corpus_Index", False)
+	index_builder = IndexBuilder("WEBPAGES_RAW/bookkeeping.json", "CS121_Inverted_Index", "HTML_Corpus_Index", False)
 	index_builder.create_index()
 	index_builder.insert_tfidf_values()
 	index_builder.insert_into_db()
