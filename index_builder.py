@@ -121,7 +121,6 @@ class IndexBuilder():
                                 weight_multiplier = 1
                                 if(token in title): #gets rid of tags
                                         weight_multiplier = weight_multiplier + 0.3
-                                weight_multiplier = 1
                                 if(url.count(token) != 0):
                                         weight_multiplier = weight_multiplier + 0.3                                
                                 if(token in h1):
