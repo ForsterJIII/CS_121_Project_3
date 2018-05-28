@@ -7,8 +7,8 @@ import sys
 import re
 
 client = MongoClient('localhost', 27017)
-db = client.cs121_db
-index = db.index
+db = client.CS121_Inverted_Index
+index = db.HTML_Corpus_Index
 
 BOOKKEPING_LOC = "WEBPAGES_RAW/bookkeeping.json"
 f = open("query_results.txt", "w+")
@@ -20,7 +20,7 @@ def test_query(query):
         result = index.find({"_id": query})
         token_value = result.next()
         f.write("For query '{}'\n".format(query))
-        for ids in token_value["docIds"]:
+        for ids in token_value["Doc_info"]:
             if(count == 10):
                 break
             
