@@ -90,12 +90,13 @@ class IndexBuilder():
 			tokens_dict = self._parse_html(soup.get_text())
 
 			self._total_documents += 1
-			title = soup.find("meta",  property="og:title")
+			title = soup.find("title")
 
 			for (token, frequencies) in tokens_dict.items():
 				weight_multiplier = 1
 				if(title):
-					weight_multiplier = weight_multiplier + 0.3
+					if(token in title.contents[0]):
+						weight_multiplier = weight_multiplier + 0.3
 				else:
 					title = "no_title"
 				if(url.count(token) != 0):
