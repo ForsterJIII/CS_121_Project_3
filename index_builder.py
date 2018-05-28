@@ -96,12 +96,15 @@ class IndexBuilder():
 				weight_multiplier = 1
 				if(title):
 					weight_multiplier = weight_multiplier + 0.3
+				else:
+					title = "no_title"
 				if(url.count(token) != 0):
                                         weight_multiplier = weight_multiplier + 0.3
 				if token not in self._inverted_index:
 					self._inverted_index[token] = {"_id" : token, "Doc_info" : defaultdict(dict) }
 				self._inverted_index[token]["Doc_info"][doc_id]["tf"] = frequencies*weight_multiplier
 				self._inverted_index[token]["Doc_info"][doc_id]["weight_multiplier"] = weight_multiplier
+				self._inverted_index[token]["Doc_info"][doc_id]["title"] = title
 				
 
 			print("Parsed {} documents so far".format(self._total_documents))
