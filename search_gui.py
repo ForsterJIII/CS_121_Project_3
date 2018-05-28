@@ -6,8 +6,8 @@ import urllib
 from bs4 import BeautifulSoup
 import webbrowser
 
-WEBPAGE_FOLDER = "../WEBPAGES_RAW"
-BOOKKEPING_LOC = "../WEBPAGES_RAW/bookkeeping.json"
+WEBPAGE_FOLDER = "WEBPAGES_RAW"
+BOOKKEPING_LOC = "WEBPAGES_RAW/bookkeeping.json"
 
 def get_tfidf( token_docInfo_pair : (str, dict) ):
 	return token_docInfo_pair[1]["tf-idf"]
