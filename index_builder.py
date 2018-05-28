@@ -104,7 +104,6 @@ class IndexBuilder():
 					self._inverted_index[token] = {"_id" : token, "Doc_info" : defaultdict(dict) }
 				self._inverted_index[token]["Doc_info"][doc_id]["tf"] = frequencies*weight_multiplier
 				self._inverted_index[token]["Doc_info"][doc_id]["weight_multiplier"] = weight_multiplier
-				self._inverted_index[token]["Doc_info"][doc_id]["title"] = title
 				
 
 			print("Parsed {} documents so far".format(self._total_documents))
