@@ -78,8 +78,8 @@ class IndexBuilder():
 		print("Starting to Parse Corpus")
 		doc_parsing_start = time.time()
 		for doc_id, url in corpus_data.items():
-			if( self._total_documents > 1000 ): #FOR TESTING
-				 break;
+			#if( self._total_documents > 1000 ): #FOR TESTING
+				 #break;
 			html_id_info = doc_id.split("/") #stored in "folder/html_file" format
 			file_name = "{}/{}/{}".format(WEBPAGE_FOLDER, html_id_info[0], html_id_info[1])
 			html_file = open(file_name, 'r', encoding = 'utf-8')
