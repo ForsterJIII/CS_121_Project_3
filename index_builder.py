@@ -14,7 +14,7 @@ from nltk.corpus import stopwords
 #nltk.download() #MUST INSTALL this before running nl tk
 
 stop_words = set(stopwords.words('english')) #Words to skip when tokenzing a document
-WEBPAGE_FOLDER = "WEBPAGES_RAW" #Folder contain all the documents to parse and the bookkeeping.json
+WEBPAGE_FOLDER = "WEBPAGES_RAW/bookkeeping.json" #Folder contain all the documents to parse and the bookkeeping.json
 
 class IndexBuilder():
 	def _setup_db(self, db_name : str, db_collection, keep_old_index : bool):
