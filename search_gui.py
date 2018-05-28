@@ -2,9 +2,12 @@ from collections import defaultdict
 import json
 from pymongo import MongoClient
 from tkinter import *
+import urllib
+from bs4 import BeautifulSoup
 import webbrowser
 
-BOOKKEPING_LOC = "../Project_3/WEBPAGES_RAW/bookkeeping.json"
+WEBPAGE_FOLDER = "../WEBPAGES_RAW"
+BOOKKEPING_LOC = "../WEBPAGES_RAW/bookkeeping.json"
 
 def get_tfidf( token_docInfo_pair : (str, dict) ):
 	return token_docInfo_pair[1]["tf-idf"]
@@ -25,18 +28,24 @@ class Search:
 	def _create_query_page(self):
 		self._clear_window()
 
-		label = Label(self._master, text="Query")
-		label.grid(row=0)
-		label.config(font=("Courier", 18))
+		label = Label(self._master, text="Query:")
+		label.config(font=("Courier", 64))
+		label.place(x=self._middle_width,y=self._middle_height, anchor="center")
 
 		self._query_entry = Entry(self._master)
-		self._query_entry.grid(row=0, column=1)
+		self._query_entry.config(font=("Courier", 64))
+		self._query_entry.place(x=self._middle_width,y=self._middle_height+120, anchor="center")
 
-		Button(self._master, text='Search', command=self._create_results_page).grid(row=3, column=0, sticky=W, pady=4)
-		Button(self._master, text='Quit', command=self._master.quit).grid(row=3, column=1, sticky=W, pady=4)
+		search_button = Button(self._master, text='Search', command=self._create_results_page)
+		search_button.config(font=("Courier", 50))
+		search_button.place(x=self._middle_width-380,y=self._middle_height+240, anchor="center")
+		
+		quit_button = Button(self._master, text='Quit', command=self._master.quit)
+		quit_button.config(font=("Courier", 50))
+		quit_button.place(x=self._middle_width+420,y=self._middle_height+240, anchor="center")
 
 	def _open_link(self, event):
-		webbrowser.open_new(event.widget.cget("text"))
+		webbrowser.open_new(str(event.widget.cget("textvariable")))
 
 	def _create_results_page(self):
 		self._query_str = self._query_entry.get()
@@ -44,27 +53,47 @@ class Search:
 		for widget in self._master.winfo_children(): # Clear the window
 			widget.destroy()
 
-		title = Label(self._master, text="Search results:")
+		title = Label(self._master, text="Top 10 Search Results For '{}':".format(self._query_str))
 		title.grid(row=0, column=1, sticky="N")
-		title.config(font=("Courier", 18))
+		title.config(font=("Courier", 32))
 		url_list = self._query(self._query_str.lower())
 
 		currRow = 1
-		for url in url_list:
+		for doc_id, url in url_list:
 			number_label = Label(self._master, text=str(currRow) + ") ")
 			number_label.grid(row=currRow, column=0, sticky="W")
-			number_label.config(font=("Courier", 18))
+			number_label.config(font=("Courier", 24))
+			
 
-			url_link = Label(self._master, text="http://" + url,
+			title = url
+			# BS to get web page title
+			html_id_info = doc_id.split("/") #stored in "folder/html_file" format
+			file_name = "{}/{}/{}".format(WEBPAGE_FOLDER, html_id_info[0], html_id_info[1])
+			html_file = open(file_name, 'r', encoding = 'utf-8')
+			soup = BeautifulSoup(html_file, 'lxml')
+			html_title = soup.title
+			if (html_title != None and html_title.string != None):
+				title = html_title.string.strip()			
+			
+
+			url_link = Label(self._master, text=title,
+								textvariable="http://"+url,
 								fg="blue", cursor="hand2")
-			url_link.grid(row=currRow, column = 1, sticky = "W")
-			url_link.config(font=("Courier", 18))
+			url_link.grid(row=currRow, column = 1, sticky = "W", columnspan = int(self._master.winfo_screenwidth()/2))
+			url_link.config(font=("Courier", 24))
 			currRow += 1
 
 			url_link.bind("<Button-1>", self._open_link)
 
+		if (url_list == []):
+			error_label = Label(self._master, text="No results found.")
+			error_label.grid(row=1, column=1)
+			error_label.config(font=("Courier", 24))
+			currRow += 1
+
 		new_search_label = Button(self._master, text="Search again", command=self._create_query_page)
-		new_search_label.grid(row=currRow, column=5, sticky="W")
+		new_search_label.grid(row=currRow, column=1, sticky="W")
+		new_search_label.config(font=("Courier", 24))
 
 	def __init__(self, db_name, db_collection):
 		self._setup_db(db_name, db_collection)
@@ -76,6 +105,8 @@ class Search:
 		self._master.resizable(0, 0)
 		self._query_entry = None
 		self._query_str = None
+		self._middle_height = int(self._master.winfo_screenheight()/2-50)
+		self._middle_width = int(self._master.winfo_screenwidth()/2-50)
 		self._create_query_page()
 
 	def _query(self, query_str: str)->list:
@@ -106,7 +137,7 @@ class Search:
 				for docID, count_and_tf_idf in sorted(count_and_tfidf_of_docid.items(), key=lambda tuple: (tuple[1][0], tuple[1][1]), reverse=True):
 					if( len(result_list) < 10 ):
 						docID_url = url_json[docID]
-						result_list.append( docID_url )
+						result_list.append((docID, docID_url))
 					else:
 						break
 				return result_list
