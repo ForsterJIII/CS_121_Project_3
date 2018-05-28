@@ -55,6 +55,7 @@ class IndexBuilder():
 		for token_info in self._inverted_index.values():
 			for doc_info in token_info["Doc_info"].values():
 				doc_info["tf-idf"] = (1+math.log10(doc_info["tf"])) * math.log10(self._total_documents/len(token_info["Doc_info"]))
+				doc_info["original_tf-idf"] = (1+math.log10(doc_info["tf"])) * math.log10(self._total_documents/len(token_info["Doc_info"]))/doc_info["weight_multiplier"]
 		print("Finished Inserting tf-idf")
 		print( "Inserting tf-idf took: {} seconds".format( time.time() - tfidf_start ) )
 
@@ -77,8 +78,8 @@ class IndexBuilder():
 		print("Starting to Parse Corpus")
 		doc_parsing_start = time.time()
 		for doc_id, url in corpus_data.items():
-			# if( self._total_documents > 5000 ): #FOR TESTING
-				# break;
+			if( self._total_documents > 1000 ): #FOR TESTING
+				 break;
 			html_id_info = doc_id.split("/") #stored in "folder/html_file" format
 			file_name = "{}/{}/{}".format(WEBPAGE_FOLDER, html_id_info[0], html_id_info[1])
 			html_file = open(file_name, 'r', encoding = 'utf-8')
@@ -89,11 +90,19 @@ class IndexBuilder():
 			tokens_dict = self._parse_html(soup.get_text())
 
 			self._total_documents += 1
+			title = soup.find("meta",  property="og:title")
 
 			for (token, frequencies) in tokens_dict.items():
+				weight_multiplier = 1
+				if(title):
+					weight_multiplier = weight_multiplier + 0.3
+				if(url.count(token) != 0):
+                                        weight_multiplier = weight_multiplier + 0.3
 				if token not in self._inverted_index:
 					self._inverted_index[token] = {"_id" : token, "Doc_info" : defaultdict(dict) }
-				self._inverted_index[token]["Doc_info"][doc_id]["tf"] = frequencies
+				self._inverted_index[token]["Doc_info"][doc_id]["tf"] = frequencies*weight_multiplier
+				self._inverted_index[token]["Doc_info"][doc_id]["weight_multiplier"] = weight_multiplier
+				
 
 			print("Parsed {} documents so far".format(self._total_documents))
 		print( "Corpus Parsing Took: {} minutes".format( (time.time() - doc_parsing_start)/60 ) )
