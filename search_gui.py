@@ -59,22 +59,24 @@ class Search:
 		url_list = self._query(self._query_str.lower())
 
 		currRow = 1
-		for doc_id, url in url_list:
+		for docID in url_list:
 			number_label = Label(self._master, text=str(currRow) + ") ")
 			number_label.grid(row=currRow, column=0, sticky="W")
 			number_label.config(font=("Courier", 24))
-			
 
-			title = url
-			# BS to get web page title
-			html_id_info = doc_id.split("/") #stored in "folder/html_file" format
+			url_json = json.load(open(BOOKKEPING_LOC)) #Contains the key for the docIDs to their urls
+			url = url_json[docID]
+			
+			# Extracts title from doc; Done upon search instead of storing in db to save space
+			html_id_info = docID.split("/") #stored in "folder/html_file" format
 			file_name = "{}/{}/{}".format(WEBPAGE_FOLDER, html_id_info[0], html_id_info[1])
 			html_file = open(file_name, 'r', encoding = 'utf-8')
 			soup = BeautifulSoup(html_file, 'lxml')
-			html_title = soup.title
-			if (html_title != None and html_title.string != None):
-				title = html_title.string.strip()			
-			
+			title_tag = soup.find('title')
+			if ( (title_tag is None) or (title_tag.string is None) ): #Title doesn't exist or is length 0
+				title = url #title defaults to url
+			else:
+				title = title_tag.string.strip() #Uses actual title		
 
 			url_link = Label(self._master, text=title,
 								textvariable="http://"+url,
@@ -111,12 +113,11 @@ class Search:
 
 	def _query(self, query_str: str)->list:
 				"""
-				Returns a list of URLs that contain the given query (sorted) by tf-idf
+				Returns a list of docIDs that contain the given query (sorted) by tf-idf
 				values.
 				"""
 				count_and_tfidf_of_docid = {} # Used to keep track of how many query terms a doc contains and its tfidf		
 				result_list = [] #Used to store the urls to be returned at the end
-				url_json = json.load(open(BOOKKEPING_LOC)) #Contains the key for the doc-ids to their urls
 				split_query = query_str.split() #Splits the query into individual terms by space
 				counter = 0
 				
@@ -128,16 +129,15 @@ class Search:
 					docs_dict = token_dict["Doc_info"]
 					for docID, attributes in sorted(docs_dict.items(), key=get_tfidf, reverse=True): #Sorted list by tf-idf
 						if( docID not in count_and_tfidf_of_docid.keys() ):
-							count_and_tfidf_of_docid[docID] = ( 1, docs_dict[docID]["tf-idf"] ) #Firsty apperance of docID
+							count_and_tfidf_of_docid[docID] = ( 1, docs_dict[docID]["tf-idf"]*docs_dict[docID]["weight_multiplier"] ) #Firsty apperance of docID
 						else:
 							count_and_tfidf_of_docid[docID] = ( count_and_tfidf_of_docid[docID][0]+1,
-																count_and_tfidf_of_docid[docID][1]+docs_dict[docID]["tf-idf"] )
+																count_and_tfidf_of_docid[docID][1]+docs_dict[docID]["tf-idf"]*docs_dict[docID]["weight_multiplier"] ) #Sums up tf-idf
 						
-				#return 10 top urls based upon query word count and then total tf-idf
+				#return 10 top docIDs based upon query word match and then total tf-idf
 				for docID, count_and_tf_idf in sorted(count_and_tfidf_of_docid.items(), key=lambda tuple: (tuple[1][0], tuple[1][1]), reverse=True):
 					if( len(result_list) < 10 ):
-						docID_url = url_json[docID]
-						result_list.append((docID, docID_url))
+						result_list.append( docID )
 					else:
 						break
 				return result_list

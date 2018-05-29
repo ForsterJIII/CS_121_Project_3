@@ -2,13 +2,13 @@ from bs4 import BeautifulSoup
 from collections import defaultdict
 import json
 import lxml
+import nltk
+from nltk.corpus import stopwords
 from pymongo import MongoClient
 import re
 import sys
 import math
 import time
-import nltk
-from nltk.corpus import stopwords
 
 #Only run once; Comment Out after
 #nltk.download() #MUST INSTALL this before running nl tk
@@ -33,31 +33,29 @@ class IndexBuilder():
 		self._inverted_index = defaultdict(dict) # A three-tiered dictionary (term->document->attributes) 
 		self._setup_db( db_name, db_collection, keep_old_index)
 
-	def _parse_html(self, text: str): #DOUBLE CHECK LATER TO SEE IF WE SHOULD BE RETURNING A DICT INSTEAD OF PASSING BY REFRENCE
+	def _parse_html(self, text: str, tokens_dict: dict):
 		"""
-		Creates the tokens dictionary from the HTML text (re-used from my
-		Assignment 1 code.) Keys are tokens and values are the tokens'
-		frequencies.
+		Stores a tokens dictionary from the HTML text into tokens_dict (modified from my Assignment 1 code.) Keys are tokens and values are the tokens' frequencies.
 		"""
-		tokens_dict = defaultdict(int)
 		for token in re.findall(re.compile(r"[A-Za-z0-9]+"), text):
 			if (token in stop_words): #Skip stop words
 					continue
 			tokens_dict[token.lower()] += 1
 		return tokens_dict
 
-	def insert_tfidf_values(self):
+	def update_db_scores(self):
 		"""
-		Insert the  tf-idf into every document's attributes
+		Updates the idf, tf-idf into every document's attributes;
+		Should only be run on a finished inverted index
 		"""
-		print("Inserting tf-idf...")
+		print("Inserting DB Scores...")
 		tfidf_start = time.time()
 		for token_info in self._inverted_index.values():
 			for doc_info in token_info["Doc_info"].values():
-				doc_info["tf-idf"] = (1+math.log10(doc_info["tf"])) * math.log10(self._total_documents/len(token_info["Doc_info"]))
-				doc_info["original_tf-idf"] = (1+math.log10(doc_info["tf"])) * math.log10(self._total_documents/len(token_info["Doc_info"]))/doc_info["weight_multiplier"]
-		print("Finished Inserting tf-idf")
-		print( "Inserting tf-idf took: {} seconds".format( time.time() - tfidf_start ) )
+				doc_info["idf"] = self._total_documents / len(token_info["Doc_info"])
+				doc_info["tf-idf"] = (1+math.log10(doc_info["tf"])) * math.log10(doc_info["idf"])
+		print("Finished Updating DB Scores")
+		print( "Updating DB Scores took: {} seconds".format( time.time() - tfidf_start ) )
 
 	def insert_into_db(self):
 		"""
@@ -78,8 +76,8 @@ class IndexBuilder():
 		print("Starting to Parse Corpus")
 		doc_parsing_start = time.time()
 		for doc_id, url in corpus_data.items():
-			#if( self._total_documents > 1000 ): #FOR TESTING
-				 #break;
+			if( self._total_documents > 5000 ): #FOR TESTING
+				 break;
 			html_id_info = doc_id.split("/") #stored in "folder/html_file" format
 			file_name = "{}/{}/{}".format(WEBPAGE_FOLDER, html_id_info[0], html_id_info[1])
 			html_file = open(file_name, 'r', encoding = 'utf-8')
@@ -87,52 +85,42 @@ class IndexBuilder():
 
 			# Create the tokens dict of given doc and iterate through
 			# each token, updating the db.
-			tokens_dict = self._parse_html(soup.get_text())
-			title = soup.find("title")
-
-
-			if(title):
-                                if(len(title.contents) != 0):#occasionally we have empty titles
-                                        title = title.contents[0]
-                                else:
-                                        title = "inval_title"
-			if(not title):
-                                title = "inval_title" #unfortunately we need 2 checks for empty title
-			h1 = soup.h1
-			if(h1):
-                                if(len(h1.contents) != 0):
-                                        h1 = h1.contents[0]
-                                else:
-                                        h1 = "inval_h1"
-
-			if(not h1):
-                                h1 = "inval_h1"
-			h2 = soup.h2
-			if(h2):
-                                if(len(h2.contents) != 0):
-                                        h2 = h2.contents[0]
-                                else:
-                                        h2 = "inval_h2"
-
-			if(not h2):
-                                h2 = "inval_h2"
+			tokens_dict = defaultdict(int)
+			self._parse_html(soup.get_text(), tokens_dict)
+			
+			#Tags for changing posting's weight_multiplier
+			doc_title_tag = soup.find("title") #Doc's title; Returns None when no title
+			doc_h1_tag = soup.find("h1") # Doc's first h1 tag; Returns None when no h1 tags
+			doc_h2_tag = soup.find("h2") # Doc's first h2 tag; Returns None when no h2 tags
+			doc_h3_tag = soup.find("h3") # Doc's first h3 tag; Returns None when no h3 tags
+			doc_h4_tag = soup.find("h4") # Doc's first h4 tag; Returns None when no h4 tags
+			doc_h5_tag = soup.find("h5") # Doc's first h5 tag; Returns None when no h5 tags
+			doc_h6_tag = soup.find("h6") # Doc's first h6 tag; Returns None when no h6 tags
+								
 			self._total_documents += 1
 			for (token, frequencies) in tokens_dict.items():
-                                weight_multiplier = 1
-                                if(token in title): #gets rid of tags
-                                        weight_multiplier = weight_multiplier + 0.3
-                                if(url.count(token) != 0):
-                                        weight_multiplier = weight_multiplier + 0.3                                
-                                if(token in h1):
-                                        weight_multiplier = weight_multiplier + 0.1
-                                if(token in h2):
-                                        weight_multiplier = weight_multiplier + 0.05
+				weight_multiplier = 1.0 #Default
+				if( (doc_title_tag is not None) and (doc_title_tag.string is not None) and (token in doc_title_tag.string.lower()) ):
+					weight_multiplier = weight_multiplier + 0.40
+				if( token in url.lower() ):
+					weight_multiplier = weight_multiplier + 0.35							
+				if( (doc_h1_tag is not None) and (doc_h1_tag.string is not None) and (token in doc_h1_tag.string.lower()) ):
+					weight_multiplier = weight_multiplier + 0.30
+				if( (doc_h2_tag is not None) and (doc_h2_tag.string is not None) and (token in doc_h2_tag.string.lower()) ):
+					weight_multiplier = weight_multiplier + 0.25
+				if( (doc_h3_tag is not None) and (doc_h3_tag.string is not None) and (token in doc_h3_tag.string.lower()) ):
+					weight_multiplier = weight_multiplier + 0.20
+				if( (doc_h4_tag is not None) and (doc_h4_tag.string is not None) and (token in doc_h4_tag.string.lower()) ):
+					weight_multiplier = weight_multiplier + 0.15
+				if( (doc_h5_tag is not None) and (doc_h5_tag.string is not None) and (token in doc_h5_tag.string.lower()) ):
+					weight_multiplier = weight_multiplier + 0.10
+				if( (doc_h6_tag is not None) and (doc_h6_tag.string is not None) and (token in doc_h6_tag.string.lower()) ):
+					weight_multiplier = weight_multiplier + 0.05
 
-                                if token not in self._inverted_index:
-                                        self._inverted_index[token] = {"_id" : token, "Doc_info" : defaultdict(dict) }
-                                self._inverted_index[token]["Doc_info"][doc_id]["tf"] = frequencies*weight_multiplier
-                                self._inverted_index[token]["Doc_info"][doc_id]["weight_multiplier"] = weight_multiplier
-			
+				if (token not in self._inverted_index):
+					self._inverted_index[token] = {"_id" : token, "Doc_info" : defaultdict(dict) }
+				self._inverted_index[token]["Doc_info"][doc_id]["tf"] = frequencies
+				self._inverted_index[token]["Doc_info"][doc_id]["weight_multiplier"] = weight_multiplier
 
 			print("Parsed {} documents so far".format(self._total_documents))
 		print( "Corpus Parsing Took: {} minutes".format( (time.time() - doc_parsing_start)/60 ) )
@@ -153,7 +141,7 @@ if __name__ == "__main__":
 	# try:
 	index_builder = IndexBuilder("WEBPAGES_RAW/bookkeeping.json", "CS121_Inverted_Index", "HTML_Corpus_Index", False)
 	index_builder.create_index()
-	index_builder.insert_tfidf_values()
+	index_builder.update_db_scores()
 	index_builder.insert_into_db()
 	# print("Completed index construction.\n Total documents parsed: {}".format( index_builder.get_total_documents() ))
 
